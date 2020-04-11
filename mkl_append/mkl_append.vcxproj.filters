@@ -23,14 +23,5 @@
     <ClCompile Include="main.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
-    <ClCompile Include="basic.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="pmbasic.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
-    <ClCompile Include="zplmk.cpp">
-      <Filter>源文件</Filter>
-    </ClCompile>
   </ItemGroup>
 </Project>
