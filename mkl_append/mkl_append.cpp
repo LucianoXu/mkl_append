@@ -73,10 +73,10 @@ Zgem_I::~Zgem_I() {
 	mkl_free(p);
 }
 
-void zgem_out(const lapack_complex_double* G, int m, int n) {
+void zgem_out(const lapack_complex_double* G, int m, int n, int ld) {
 	for (int i = 0; i < m; i++) {
 		for (int j = 0; j < n; j++) {
-			std::cout << G[i * n + j];
+			std::cout << G[i * ld + j];
 			std::cout << "\t";
 		}
 		std::cout << std::endl;
@@ -160,56 +160,57 @@ void zvek(const lapack_complex_double* v1, int m, const lapack_complex_double* v
 //Compute Hr(mn*mn):=H1(m*m)(DirectProduct)H2(n*n)
 //full storage, row major,
 //H1 should at least be stored in lower triangle, row major, H2 should be full
-void zhelrmk(const lapack_complex_double* H1, int m, const lapack_complex_double* H2, int n, lapack_complex_double* Hr) {
+//ld means the length of the row
+void zhelrmk(const lapack_complex_double* H1, int m, int ld1, const lapack_complex_double* H2, int n, int ld2, lapack_complex_double* Hr,int ldr) {
 	for (int i1 = 0; i1 < m; i1++) {
 		//先对角线
-		lapack_complex_double z = H1[i1 * m + i1];
+		lapack_complex_double z = H1[i1 *ld1 + i1];
 		for (int i2 = 0; i2 < n; i2++) {
-			int _index = (i1*n + i2) * m * n + i1*n;
+			int _index = (i1*n + i2) * ldr + i1*n;
 			for (int j2 = 0; j2 < n ; j2++) {
-				Hr[_index + j2] = z * H2[i2 * n + j2];
+				Hr[_index + j2] = z * H2[i2 * ld2 + j2];
 			}
 		}
 		//再下三角
 		for (int j1 = 0; j1 < m; j1++) {
-			lapack_complex_double z1 = H1[i1 * m + j1];
+			lapack_complex_double z1 = H1[i1 * ld1 + j1];
 			lapack_complex_double z2 = conj(z1);
 			for (int i2 = 0; i2 < n; i2++) {
-				int _index1 = (i1 * n + i2) * m * n + j1 * n;
-				int _index2 = (j1 * n + i2) * m * n + i1 * n;
+				int _index1 = (i1 * n + i2) * ldr + j1 * n;
+				int _index2 = (j1 * n + i2) * ldr + i1 * n;
 				for (int j2 = 0; j2 < n; j2++) {
 					//处理其中一半
-					Hr[_index1 + j2] = z1 * H2[i2 * n + j2];
+					Hr[_index1 + j2] = z1 * H2[i2 * ld2 + j2];
 					//处理共轭的另一半
-					Hr[_index2 + j2] = z2 * H2[i2 * n + j2];
+					Hr[_index2 + j2] = z2 * H2[i2 * ld2 + j2];
 				}
 			}
 		}
 	}
 }
 
-void zhelrmk_append(const lapack_complex_double* H1, int m, const lapack_complex_double* H2, int n, lapack_complex_double* Hr) {
+void zhelrmk_append(const lapack_complex_double* H1, int m, int ld1, const lapack_complex_double* H2, int n, int ld2, lapack_complex_double* Hr, int ldr){
 	for (int i1 = 0; i1 < m; i1++) {
 		//先对角线
-		lapack_complex_double z = H1[i1 * m + i1];
+		lapack_complex_double z = H1[i1 * ld1 + i1];
 		for (int i2 = 0; i2 < n; i2++) {
-			int _index = (i1 * n + i2) * m * n + i1 * n;
+			int _index = (i1 * n + i2) * ldr + i1 * n;
 			for (int j2 = 0; j2 < n; j2++) {
-				Hr[_index + j2] += z * H2[i2 * n + j2];
+				Hr[_index + j2] += z * H2[i2 * ld2 + j2];
 			}
 		}
 		//再下三角
 		for (int j1 = 0; j1 < m; j1++) {
-			lapack_complex_double z1 = H1[i1 * m + j1];
+			lapack_complex_double z1 = H1[i1 * ld1 + j1];
 			lapack_complex_double z2 = conj(z1);
 			for (int i2 = 0; i2 < n; i2++) {
-				int _index1 = (i1 * n + i2) * m * n + j1 * n;
-				int _index2 = (j1 * n + i2) * m * n + i1 * n;
+				int _index1 = (i1 * n + i2) * ldr + j1 * n;
+				int _index2 = (j1 * n + i2) * ldr + i1 * n;
 				for (int j2 = 0; j2 < n; j2++) {
 					//处理其中一半
-					Hr[_index1 + j2] += z1 * H2[i2 * n + j2];
+					Hr[_index1 + j2] += z1 * H2[i2 * ld2 + j2];
 					//处理共轭的另一半
-					Hr[_index2 + j2] += z2 * H2[i2 * n + j2];
+					Hr[_index2 + j2] += z2 * H2[i2 * ld2 + j2];
 				}
 			}
 		}

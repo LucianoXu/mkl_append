@@ -33,7 +33,7 @@ public:
 };
 
 //output the matrix(vector) G(n*m) with ostream
-void zgem_out(const lapack_complex_double* G, int m, int n);
+void zgem_out(const lapack_complex_double* G, int m,int n, int ld);
 
 //Hermitan matrix, packed storage, add
 void zhpma(const lapack_complex_double* H1, const lapack_complex_double* H2, int n, lapack_complex_double* Hr);
@@ -51,11 +51,11 @@ void zvek(const lapack_complex_double* v1, int m, const lapack_complex_double* v
 //Compute Hr(mn*mn):=H1(m*m)(DirectProduct)H2(n*n)
 //full storage, L, row major,
 //H1,H2 should be stored in lower triangle, row major
-void zhelrmk(const lapack_complex_double* H1, int m, const lapack_complex_double* H2, int n, lapack_complex_double* Hr);
+void zhelrmk(const lapack_complex_double* H1, int m, int ld1, const lapack_complex_double* H2, int n, int ld2, lapack_complex_double* Hr, int ldr);
 
 //Compute Hr(mn*mn):=H1(m*m)(DirectProduct)H2(n*n)
 //full storage, L, row major,
 //H1,H2 should be stored in lower triangle, row major
 //appending mode, meaning result will be added to Hr
-void zhelrmk_append(const lapack_complex_double* H1, int m, const lapack_complex_double* H2, int n, lapack_complex_double* Hr);
+void zhelrmk_append(const lapack_complex_double* H1, int m, int ld1, const lapack_complex_double* H2, int n, int ld2, lapack_complex_double* Hr, int ldr);
 #endif
