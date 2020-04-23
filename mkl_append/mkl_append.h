@@ -27,8 +27,8 @@ private:
 public:
 	Zgem_I();
 	bool Prepare_I(MKL_INT _N);	//ÈôÄÚ´æ·ÖÅäÊ§°Ü£¬·µ»Øfalse
-	const inline lapack_complex_double* const Get_I() const;
-	inline MKL_INT Get_N() const;
+	const lapack_complex_double* const Get_I() const;
+	MKL_INT Get_N() const;
 	~Zgem_I();
 };
 
