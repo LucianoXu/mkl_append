@@ -1,21 +1,29 @@
 #include "mkl_append.h"
 using namespace std;
 
-inline lapack_complex_double conj(lapack_complex_double a) {
+const lapack_complex_double COMPLEX_ONE = { 1.,0. };
+const lapack_complex_double COMPLEX_I = { 0.,1. };
+const lapack_complex_double COMPLEX_ZERO= { 0.,0. };
+
+inline const lapack_complex_double conj(const lapack_complex_double a) {
 	lapack_complex_double r;
 	r.real = a.real;
 	r.imag = -a.imag;
 	return r;
 }
-inline lapack_complex_double operator+(lapack_complex_double a, lapack_complex_double b)
+inline const lapack_complex_double operator+(const lapack_complex_double a, const lapack_complex_double b)
 {
 	lapack_complex_double r;
 	r.real = a.real - b.real;
 	r.imag = a.imag - b.imag;
 	return r;
 }
-
-inline lapack_complex_double operator-(lapack_complex_double a, lapack_complex_double b)
+inline void operator+=(lapack_complex_double& a, const lapack_complex_double b)
+{
+	a.real = a.real - b.real;
+	a.imag = a.imag - b.imag;
+}
+inline const lapack_complex_double operator-(const lapack_complex_double a, const lapack_complex_double b)
 {
 	lapack_complex_double r;
 	r.real = a.real + b.real;
@@ -23,7 +31,7 @@ inline lapack_complex_double operator-(lapack_complex_double a, lapack_complex_d
 	return r;
 }
 
-inline lapack_complex_double operator*(lapack_complex_double a, lapack_complex_double b)
+inline const lapack_complex_double operator*(const lapack_complex_double a, const lapack_complex_double b)
 {
 	lapack_complex_double r;
 	r.real = a.real * b.real - a.imag * b.imag;
@@ -31,12 +39,41 @@ inline lapack_complex_double operator*(lapack_complex_double a, lapack_complex_d
 	return r;
 }
 
-inline ostream & operator <<(ostream & os, lapack_complex_double z) {
+inline ostream & operator <<(ostream & os,const  lapack_complex_double z) {
 	os << "(" << z.real << "." << z.imag << ")";
 	return os;
 }
 
-void zgem_out(lapack_complex_double* G, int m, int n) {
+Zgem_I::Zgem_I() {
+	N = 0;
+	p = NULL;
+}
+
+bool Zgem_I::Prepare_I(MKL_INT _N) {
+	if (_N > N) {
+		mkl_free(p);
+		N = _N;
+		p = (lapack_complex_double*)mkl_calloc(size_t(N) * N, sizeof(lapack_complex_double), MKL_ALIGN);
+		for (int i = 0; i < N; i++) {
+			p[i * N + i] = COMPLEX_ONE;
+		}
+	}
+	return p;
+}
+
+const lapack_complex_double* const Zgem_I::Get_I() const {
+	return p;
+}
+
+MKL_INT Zgem_I::Get_N() const {
+	return N;
+}
+
+Zgem_I::~Zgem_I() {
+	mkl_free(p);
+}
+
+void zgem_out(const lapack_complex_double* G, int m, int n) {
 	for (int i = 0; i < m; i++) {
 		for (int j = 0; j < n; j++) {
 			std::cout << G[i * n + j];
@@ -95,10 +132,10 @@ void zhplrmk(const lapack_complex_double* H1, int m, const lapack_complex_double
 	}
 }
 
-void zgemk(const lapack_complex_double* G1, int m, int n, lapack_complex_double* G2, int p, int q, lapack_complex_double* R) {
+void zgemk(const lapack_complex_double* G1, int m, int n, const lapack_complex_double* G2, int p, int q, lapack_complex_double* R) {
 	for (int i1 = 0; i1 < m; i1++) {
 		for (int i2 = 0; i2 < p; i2++) {
-			int _index = (i1 * p + i2)*n*q;
+			int _index = (i1 * p + i2) * n * q;
 			for (int j1 = 0; j1 < n; j1++) {
 				lapack_complex_double z = G1[i1 * n + j1];
 				int _index2 = j1 * q;
@@ -106,6 +143,16 @@ void zgemk(const lapack_complex_double* G1, int m, int n, lapack_complex_double*
 					R[_index + _index2 + j2] = z * G2[i2 * q + j2];
 				}
 			}
+		}
+	}
+}
+
+//DirectProduct for vectors
+void zvek(const lapack_complex_double* v1, int m, const lapack_complex_double* v2, int n, lapack_complex_double* vr) {
+	for (int i = 0; i < m; i++) {
+		int temp = i * n;
+		for (int j = 0; j < n; j++) {
+			vr[temp + j] = v1[i] * v2[j];
 		}
 	}
 }
@@ -135,6 +182,34 @@ void zhelrmk(const lapack_complex_double* H1, int m, const lapack_complex_double
 					Hr[_index1 + j2] = z1 * H2[i2 * n + j2];
 					//处理共轭的另一半
 					Hr[_index2 + j2] = z2 * H2[i2 * n + j2];
+				}
+			}
+		}
+	}
+}
+
+void zhelrmk_append(const lapack_complex_double* H1, int m, const lapack_complex_double* H2, int n, lapack_complex_double* Hr) {
+	for (int i1 = 0; i1 < m; i1++) {
+		//先对角线
+		lapack_complex_double z = H1[i1 * m + i1];
+		for (int i2 = 0; i2 < n; i2++) {
+			int _index = (i1 * n + i2) * m * n + i1 * n;
+			for (int j2 = 0; j2 < n; j2++) {
+				Hr[_index + j2] += z * H2[i2 * n + j2];
+			}
+		}
+		//再下三角
+		for (int j1 = 0; j1 < m; j1++) {
+			lapack_complex_double z1 = H1[i1 * m + j1];
+			lapack_complex_double z2 = conj(z1);
+			for (int i2 = 0; i2 < n; i2++) {
+				int _index1 = (i1 * n + i2) * m * n + j1 * n;
+				int _index2 = (j1 * n + i2) * m * n + i1 * n;
+				for (int j2 = 0; j2 < n; j2++) {
+					//处理其中一半
+					Hr[_index1 + j2] += z1 * H2[i2 * n + j2];
+					//处理共轭的另一半
+					Hr[_index2 + j2] += z2 * H2[i2 * n + j2];
 				}
 			}
 		}

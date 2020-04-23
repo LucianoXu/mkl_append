@@ -3,15 +3,37 @@
 #include <mkl.h>
 #include <iostream>
 
-inline lapack_complex_double conj(lapack_complex_double a);
-inline lapack_complex_double operator+(lapack_complex_double a, lapack_complex_double b);
-inline lapack_complex_double operator-(lapack_complex_double a, lapack_complex_double b);
-inline lapack_complex_double operator*(lapack_complex_double a, lapack_complex_double b);
+#ifndef MKL_ALIGN
+#define MKL_ALIGN 64
+#endif
 
-inline std::ostream & operator <<(std::ostream& os, lapack_complex_double z);
+extern const lapack_complex_double COMPLEX_ONE;
+extern const lapack_complex_double COMPLEX_I;
+extern const lapack_complex_double COMPLEX_ZERO;
+
+inline const lapack_complex_double conj(const lapack_complex_double a);
+inline const lapack_complex_double operator+(const lapack_complex_double a, const lapack_complex_double b);
+inline void operator+=(lapack_complex_double& a, const lapack_complex_double b);
+inline const lapack_complex_double operator-(const lapack_complex_double a, const lapack_complex_double b);
+inline const lapack_complex_double operator*(const lapack_complex_double a, const lapack_complex_double b);
+
+inline std::ostream & operator <<(std::ostream& os,const lapack_complex_double z);
+
+//construct the identity matrix
+class Zgem_I {
+private:
+	lapack_complex_double* p;
+	MKL_INT N;
+public:
+	Zgem_I();
+	bool Prepare_I(MKL_INT _N);	//ÈôÄÚ´æ·ÖÅäÊ§°Ü£¬·µ»Øfalse
+	const inline lapack_complex_double* const Get_I() const;
+	inline MKL_INT Get_N() const;
+	~Zgem_I();
+};
 
 //output the matrix(vector) G(n*m) with ostream
-void zgem_out(lapack_complex_double* G, int m, int n);
+void zgem_out(const lapack_complex_double* G, int m, int n);
 
 //Hermitan matrix, packed storage, add
 void zhpma(const lapack_complex_double* H1, const lapack_complex_double* H2, int n, lapack_complex_double* Hr);
@@ -21,11 +43,19 @@ void zhpma(const lapack_complex_double* H1, const lapack_complex_double* H2, int
 void zhplrmk(const lapack_complex_double* H1, int m, const lapack_complex_double* H2, int n, lapack_complex_double* Hr);
 
 //DirectProduct for general matrixs(vectors)
-void zgemk(const lapack_complex_double* G1, int m, int n, lapack_complex_double* G2, int p, int q, lapack_complex_double* R);
+void zgemk(const lapack_complex_double* G1, int m, int n, const lapack_complex_double* G2, int p, int q, lapack_complex_double* R);
+
+//DirectProduct for vectors
+void zvek(const lapack_complex_double* v1, int m, const lapack_complex_double* v2, int n, lapack_complex_double* vr);
 
 //Compute Hr(mn*mn):=H1(m*m)(DirectProduct)H2(n*n)
 //full storage, L, row major,
 //H1,H2 should be stored in lower triangle, row major
 void zhelrmk(const lapack_complex_double* H1, int m, const lapack_complex_double* H2, int n, lapack_complex_double* Hr);
 
+//Compute Hr(mn*mn):=H1(m*m)(DirectProduct)H2(n*n)
+//full storage, L, row major,
+//H1,H2 should be stored in lower triangle, row major
+//appending mode, meaning result will be added to Hr
+void zhelrmk_append(const lapack_complex_double* H1, int m, const lapack_complex_double* H2, int n, lapack_complex_double* Hr);
 #endif
