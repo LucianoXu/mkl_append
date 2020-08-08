@@ -1,6 +1,8 @@
 #include "mkl_append.h"
 using namespace std;
 
+Zhpm_I zhpm_I;
+Zgem_I zgem_I;
 const lapack_complex_double COMPLEX_ONE = { 1.,0. };
 const lapack_complex_double COMPLEX_MINUS_ONE = { -1.,0. };
 const lapack_complex_double COMPLEX_I = { 0.,1. };
@@ -46,6 +48,38 @@ inline ostream& operator <<(ostream& os, const  lapack_complex_double z) {
 	return os;
 }
 
+Zhpm_I::Zhpm_I() {
+	N = 0;
+	p = NULL;
+}
+
+bool Zhpm_I::Prepare_I(MKL_INT _N) {
+	//至少申请1维数单位向量
+	_N = (_N == 0) ? 1 : _N;
+	if (_N > N) {
+		mkl_free(p);
+		N = _N;
+		p = (lapack_complex_double*)mkl_calloc(N * (size_t(N) + 1) / 2, sizeof(lapack_complex_double), MKL_ALIGN);
+		for (int i = 0; i < N; i++) {
+			p[i * (i + 1) / 2 + i] = COMPLEX_ONE;
+		}
+	}
+	return p;
+}
+
+const lapack_complex_double* const Zhpm_I::Get_I() const {
+	return p;
+}
+
+MKL_INT Zhpm_I::Get_N() const {
+	return N;
+}
+
+Zhpm_I::~Zhpm_I() {
+	mkl_free(p);
+}
+
+
 Zgem_I::Zgem_I() {
 	N = 0;
 	p = NULL;
@@ -55,9 +89,9 @@ bool Zgem_I::Prepare_I(MKL_INT _N) {
 	if (_N > N) {
 		mkl_free(p);
 		N = _N;
-		p = (lapack_complex_double*)mkl_calloc(N * (size_t(N) + 1) / 2, sizeof(lapack_complex_double), MKL_ALIGN);
+		p = (lapack_complex_double*)mkl_calloc(N * N, sizeof(lapack_complex_double), MKL_ALIGN);
 		for (int i = 0; i < N; i++) {
-			p[i * (i + 1) / 2 + i] = COMPLEX_ONE;
+			p[i *N + i] = COMPLEX_ONE;
 		}
 	}
 	return p;
@@ -74,6 +108,8 @@ MKL_INT Zgem_I::Get_N() const {
 Zgem_I::~Zgem_I() {
 	mkl_free(p);
 }
+
+
 
 void zgem_out(const lapack_complex_double* G, int m, int n, int ld) {
 	for (int i = 0; i < m; i++) {
@@ -117,20 +153,39 @@ void zhpma(const lapack_complex_double* H1, const lapack_complex_double* H2, int
 	}
 }
 
-void zgemk(const lapack_complex_double* G1, int m, int n, const lapack_complex_double* G2, int p, int q, lapack_complex_double* R) {
+void zgemk(const lapack_complex_double* G1, int m, int n, int ld1,const lapack_complex_double* G2, int p, int q, int ld2,lapack_complex_double* R,int ldr) {
 	for (int i1 = 0; i1 < m; i1++) {
 		for (int i2 = 0; i2 < p; i2++) {
-			int _index = (i1 * p + i2) * n * q;
+			int _index1 = (i1 * p + i2) * ldr;
 			for (int j1 = 0; j1 < n; j1++) {
-				lapack_complex_double z = G1[i1 * n + j1];
 				int _index2 = j1 * q;
+				lapack_complex_double z = G1[i1 * ld1 + j1];
 				for (int j2 = 0; j2 < q; j2++) {
-					R[_index + _index2 + j2] = z * G2[i2 * q + j2];
+					R[_index1 + _index2 + j2] = z * G2[i2 * ld2 + j2];
 				}
 			}
 		}
 	}
 }
+
+
+void zuemk_I(const lapack_complex_double* G1, int m, int ld1, int n, lapack_complex_double* R, int ldr) {
+	lapack_complex_double ZERO = { 0.,0. };
+	for (int i1 = 0; i1 < m; i1++) {
+		for (int i2 = 0; i2 < n; i2++) {
+			int _index1 = (i1 * n + i2) * ldr;
+			for (int j1 = 0; j1 < m; j1++) {
+				int _index2 = j1 * n;
+				lapack_complex_double z = G1[i1 * ld1 + j1];
+				for (int j2 = 0; j2 < n; j2++) {
+					R[_index1 + _index2 + j2] = (i2 == j2) ? z : ZERO;
+				}
+			}
+		}
+	}
+}
+
+
 
 //DirectProduct for vectors
 void zvek(const lapack_complex_double* v1, int m, int inc_v1, const lapack_complex_double* v2, int n, int inc_v2, lapack_complex_double* vr, int inc_vr) {
@@ -282,4 +337,59 @@ double zvenml(int n, lapack_complex_double* v, int incv) {
 	lapack_complex_double  coef = {1/r ,0. };
 	cblas_zscal(n, &coef, v, incv);
 	return r;
+}
+
+double zvenml_dx(int n, lapack_complex_double* v, int incv, double dx) {
+	double r = cblas_dznrm2(n, v, incv)*sqrt(dx);
+	lapack_complex_double  coef = { 1 / r ,0. };
+	cblas_zscal(n, &coef, v, incv);
+	return r;
+}
+
+int Epsilon(int N, const int* list) {	//计算高阶全反对称张量
+	int temp;
+	int switch_count = 0;
+	int* p_copy = new int[N];
+	for (int i = 0; i < N; i++) {
+		p_copy[i] = list[i];
+	}
+
+	for (int i = 0; i < N; i++) {
+		if (p_copy[i] == i) continue;
+		int j;
+		for (j = i + 1; j < N; j++) {
+			if (p_copy[j] == i) {
+				temp = p_copy[j];
+				p_copy[j] = p_copy[i];
+				p_copy[i] = temp;
+				switch_count++;
+				break;
+			}
+		}
+		//如果没有找到对应指标
+		if (j == N) {
+			delete[] p_copy;
+			return 0;
+		}
+	}
+	delete[] p_copy;
+	return (switch_count % 2 == 0) ? 1 : -1;
+}
+
+int PermutationCheck(int N, const int* list) {	//检查是否有重复指标，没有则输出1，有则输出0.
+	bool* p_checklist = new bool[N];
+	for (int i = 0; i < N; i++) {
+		p_checklist[i] = false;
+	}
+	for (int i = 0; i < N; i++) {
+		if (p_checklist[list[i]]) {
+			delete[] p_checklist;
+			return 0;
+		}
+		else {
+			p_checklist[list[i]] = false;
+		}
+	}
+	delete[] p_checklist;
+	return 1;
 }
